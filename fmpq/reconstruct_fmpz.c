@@ -29,8 +29,29 @@ int _fmpq_reconstruct_fmpz(fmpz_t n, fmpz_t d, const fmpz_t a, const fmpz_t m)
     return result;
 }
 
+int _fmpq_reconstruct_fmpz_mqrr(fmpz_t n, fmpz_t d, const fmpz_t a, const fmpz_t m, fmpz_t T)
+{
+    fmpz_t N;
+    int result;
+
+    fmpz_init(N);
+    fmpz_fdiv_q_2exp(N, m, 1);
+    if (fmpz_is_even(m))
+        fmpz_sub_ui(N, N, 1);
+    fmpz_sqrt(N, N);
+    result = _fmpq_reconstruct_fmpz_2_mqrr(n, d, a, m, N, N, T);
+    fmpz_clear(N);
+
+    return result;
+}
+
 int fmpq_reconstruct_fmpz(fmpq_t res, const fmpz_t a, const fmpz_t m)
 {
     return _fmpq_reconstruct_fmpz(fmpq_numref(res), fmpq_denref(res), a, m);
 }
 
+int fmpq_reconstruct_fmpz_mqrr(fmpq_t res, const fmpz_t a, const fmpz_t m, fmpz_t T)
+{
+    if (fmpz_is_zero(T)) return _fmpq_reconstruct_fmpz(fmpq_numref(res), fmpq_denref(res), a, m);
+    return _fmpq_reconstruct_fmpz_mqrr(fmpq_numref(res), fmpq_denref(res), a, m, T);
+}

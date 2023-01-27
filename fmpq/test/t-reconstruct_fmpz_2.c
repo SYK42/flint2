@@ -25,6 +25,7 @@ main(void)
 
     flint_printf("reconstruct_fmpz_2....");
     fflush(stdout);
+    int fail_counter_mqrr = 0;
 
     /* check successful reconstructions */
     for (i = 0; i < 1000*flint_test_multiplier(); i++)
@@ -32,6 +33,7 @@ main(void)
         int success;
         fmpq_t x, y;
         fmpz_t mod, res, N, D, t;
+        fmpz_t T;
 
         fmpq_init(x);
         fmpq_init(y);
@@ -40,6 +42,7 @@ main(void)
         fmpz_init(N);
         fmpz_init(D);
         fmpz_init(t);
+        fmpz_init(T);
 
         if (i % 2)
         {
@@ -103,6 +106,38 @@ main(void)
             flint_abort();
         }
 
+
+        fmpz_t rand_n;
+        fmpz_t rand_d;
+        fmpz_init(rand_n);
+        fmpz_init(rand_d);
+        int bits = (1 + n_randint(state, 5000))/2;
+        if (bits == 0) bits = 1;
+        do
+        {
+            fmpz_randtest(rand_n, state, bits);
+            fmpz_randtest_not_zero(rand_d, state, bits);
+            fmpq_set_fmpz_frac(x, rand_n, rand_d);
+        }
+        while (!fmpq_mod_fmpz(res, x, mod));
+        fmpz_clear(rand_n);
+        fmpz_clear(rand_d);
+
+        fmpz_set_ui(T, fmpz_sizeinbase(mod, 2));
+        fmpz_mul_ui(T, T, 1024);
+        fmpz_t tmp;
+        fmpz_init(tmp);
+        fmpz_set(tmp, T);
+
+        fmpz_set_ui(D, 0); // set d to 0 to deactivate wang
+        success = fmpq_reconstruct_fmpz_2_mqrr(y, res, mod, N, D, T);
+        if (success && !fmpq_equal(x, y))
+        {
+            fail_counter_mqrr ++;
+        }
+
+        fmpz_clear(tmp);
+
         fmpq_clear(x);
         fmpq_clear(y);
         fmpz_clear(mod);
@@ -110,6 +145,15 @@ main(void)
         fmpz_clear(N);
         fmpz_clear(D);
         fmpz_clear(t);
+        fmpz_clear(T);
+    }
+
+    // mqrr should only fail in less than 1% of cases
+    if (fail_counter_mqrr * 100 >  1000*flint_test_multiplier())
+    {
+        flint_printf("FAIL: maximal quotient reconstruction failed %i out of %i times.", fail_counter_mqrr, 1000*flint_test_multiplier());
+        fflush(stdout);
+        flint_abort();
     }
 
     /* check random reconstructions */

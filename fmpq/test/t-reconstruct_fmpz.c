@@ -26,19 +26,21 @@ main(void)
     flint_printf("reconstruct_fmpz....");
     fflush(stdout);
 
+
+    int fail_counter_mqrr = 0;
     for (i = 0; i < 1000*flint_test_multiplier(); i++)
     {
         int result;
         fmpq_t x, y;
         fmpz_t mod;
         fmpz_t res;
-        mpz_t tmp;
+        fmpz_t T;
 
         fmpq_init(x);
         fmpq_init(y);
         fmpz_init(mod);
         fmpz_init(res);
-        mpz_init(tmp);
+        fmpz_init(T);
 
         fmpq_randtest(x, state, 1000);
 
@@ -70,11 +72,27 @@ main(void)
             flint_abort();
         }
 
+        fmpz_set_ui(T, fmpz_sizeinbase(mod, 2));
+        fmpz_mul_ui(T, T, 1024);
+        result = fmpq_reconstruct_fmpz_mqrr(y, res, mod, T);
+        if (result && !fmpq_equal(x, y))
+        {
+            fail_counter_mqrr ++;
+        }
+
         fmpq_clear(x);
         fmpq_clear(y);
         fmpz_clear(mod);
         fmpz_clear(res);
-        mpz_clear(tmp);
+        fmpz_clear(T);
+    }
+
+    // mqrr should only fail in less than 1% of cases
+    if (fail_counter_mqrr * 100 >  1000*flint_test_multiplier())
+    {
+        flint_printf("FAIL: maximal quotient reconstruction failed %i out of %i times.", fail_counter_mqrr, 1000*flint_test_multiplier());
+        fflush(stdout);
+        flint_abort();
     }
 
     FLINT_TEST_CLEANUP(state);

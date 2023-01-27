@@ -364,7 +364,11 @@ fmpq_gcd_cofactors(fmpq_t g, fmpz_t A, fmpz_t B, const fmpq_t a, const fmpq_t b)
 
 FLINT_DLL int _fmpq_reconstruct_fmpz(fmpz_t num, fmpz_t den, const fmpz_t a, const fmpz_t m);
 
+FLINT_DLL int _fmpq_reconstruct_fmpz_mqrr(fmpz_t num, fmpz_t den, const fmpz_t a, const fmpz_t m, fmpz_t T);
+
 FLINT_DLL int fmpq_reconstruct_fmpz(fmpq_t res, const fmpz_t a, const fmpz_t m);
+
+FLINT_DLL int fmpq_reconstruct_fmpz_mqrr(fmpq_t res, const fmpz_t a, const fmpz_t m, fmpz_t T);
 
 FLINT_DLL int _fmpq_reconstruct_fmpz_2_naive(fmpz_t n, fmpz_t d,
                const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D);
@@ -372,8 +376,14 @@ FLINT_DLL int _fmpq_reconstruct_fmpz_2_naive(fmpz_t n, fmpz_t d,
 FLINT_DLL int _fmpq_reconstruct_fmpz_2(fmpz_t n, fmpz_t d,
                const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D);
 
+FLINT_DLL int _fmpq_reconstruct_fmpz_2_mqrr(fmpz_t n, fmpz_t d,
+               const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D, fmpz_t T);
+
 FLINT_DLL int fmpq_reconstruct_fmpz_2(fmpq_t res,
                const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D);
+
+FLINT_DLL int fmpq_reconstruct_fmpz_2_mqrr(fmpq_t res,
+               const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D, fmpz_t T);
 
 FLINT_DLL flint_bitcnt_t fmpq_height_bits(const fmpq_t x);
 

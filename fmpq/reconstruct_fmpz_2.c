@@ -1061,11 +1061,229 @@ cleanup_assert:
     return success;
 }
 
+int _fmpq_reconstruct_fmpz_2_mqrr(fmpz_t n, fmpz_t d,
+                const fmpz_t a, const fmpz_t m, const fmpz_t N, const fmpz_t D, fmpz_t T)
+{
+    int ret, success;
+    mp_size_t Asize, Nsize;
+    fmpz_t Q, R, A, B;
+    _fmpz_mat22_t M; /* only need first row of matrix M */
+
+    // For Monagan termination criterion
+    fmpz_set_ui(n, 0);
+    fmpz_set_ui(d, 0);
+
+#if FLINT_WANT_ASSERT
+    int cqt_success;
+    fmpz_t cqt_n, cqt_d;
+
+    /* check answer against correct naive version */
+    fmpz_init(cqt_n);
+    fmpz_init(cqt_d);
+    cqt_success = _fmpq_reconstruct_fmpz_2_naive(cqt_n, cqt_d, a, m, N, D);
+#endif
+
+    if (fmpz_is_zero(D))
+    {
+        _fmpz_mat22_init(M);
+        _fmpz_mat22_one(M);
+
+        fmpz_init_set(A, m);
+        fmpz_init_set(B, a);
+        fmpz_init(Q);
+        fmpz_init(R);
+        goto mqrr_start;
+    }
+
+    /* Quickly identify small integers */
+    if (fmpz_cmp(a, N) <= 0)
+    {
+        fmpz_set(n, a);
+        fmpz_one(d);
+        success = 1;
+        goto cleanup_assert;
+    }
+
+    fmpz_sub(n, a, m);
+    if (fmpz_cmpabs(n, N) <= 0)
+    {
+        fmpz_one(d);
+        success = 1;
+        goto cleanup_assert;
+    }
+
+    Asize = fmpz_size(m);
+    Nsize = fmpz_size(N);
+
+    /* it is better to avoid the fmpz overhead & allocation at small sizes */
+    if (Asize <= FMPQ_RECONSTRUCT_ARRAY_LIMIT)
+    {
+        if (Asize < 2)
+            success = _fmpq_reconstruct_fmpz_2_ui(n, d, a, m, N, D);
+        else if (Asize == 2)
+            success = _fmpq_reconstruct_fmpz_2_uiui(n, d, a, m, N, D);
+        else
+            success = _fmpq_reconstruct_fmpz_2_ui_array(n, d, a, m, N, D);
+        goto cleanup_assert;
+    }
+
+    _fmpz_mat22_init(M);
+    _fmpz_mat22_one(M);
+
+    fmpz_init_set(A, m);
+    fmpz_init_set(B, a);
+    fmpz_init(Q);
+    fmpz_init(R);
+
+    /* We have A > B > N > 0; accumulate quotients into M until A > N >= B */
+    FLINT_ASSERT(fmpz_cmp(A, B) > 0 && fmpz_cmp(B, N) > 0 && fmpz_sgn(N) > 0);
+
+    if (Asize - Nsize < 3)
+        goto gauss;
+
+    if (Asize - Nsize < FMPQ_RECONSTRUCT_HGCD_CUTOFF)
+        goto lehmer;
+
+    if (_split(M, A, B, N))
+        goto write_answer;
+
+lehmer:
+
+    FLINT_ASSERT(fmpz_cmp(A, B) > 0 && fmpz_cmp(B, N) > 0);
+
+    ret = _lehmer(M, A, B, N, Q, R);
+    if (ret < 0)
+        goto mqrr_start;
+    else if (ret > 0)
+        goto write_answer;
+
+    fmpz_fdiv_qr(Q, A, A, B);
+    fmpz_addmul(M->_12, M->_11, Q); fmpz_swap(M->_11, M->_12); M->det *= -1;
+    fmpz_swap(A, B);
+
+    if (fmpz_cmp(B, N) > 0)
+        goto lehmer;
+
+    goto write_answer;
+
+mqrr_start:
+
+    if (fmpz_is_zero(B) && !fmpz_is_zero(T))
+    {
+        if (fmpz_cmp(A, T) > 0)
+        {
+            fmpz_set_ui(d, 1);
+        }
+        else if (!fmpz_is_zero(D))
+        {
+            fmpz_set_ui(T,0);
+            goto gauss;
+        }
+        goto write_answer_mqrr;
+    }
+
+gauss:
+
+    FLINT_ASSERT(fmpz_cmp(A, B) > 0 && fmpz_cmp(B, N) > 0);
+
+    if ((fmpz_is_zero(B) || fmpz_cmp(A, T) <= 0) && !fmpz_is_zero(T))
+    {
+        goto write_answer_mqrr;
+    }
+
+    fmpz_fdiv_qr(Q, A, A, B);
+    if (fmpz_cmp(Q, T) > 0 && !fmpz_is_zero(T))
+    {
+        fmpz_set(n, B);
+        if (M->det != 1) fmpz_neg(n, n);
+        fmpz_set(d, M->_11);
+        fmpz_set(T, Q);
+    }
+    fmpz_addmul(M->_12, M->_11, Q); fmpz_swap(M->_11, M->_12); M->det *= -1;
+    fmpz_swap(A, B);
+
+continue_gauss:
+
+    if (fmpz_cmp(B, N) > 0 || fmpz_is_zero(D))
+        goto gauss;
+
+write_answer:
+
+    FLINT_ASSERT(fmpz_cmp(A, N) > 0 && fmpz_cmp(N, B) >= 0);
+
+    fmpz_swap(n, B);
+    fmpz_swap(d, M->_11);
+    if (M->det != 1)
+    {
+        FLINT_ASSERT(M->det == -1);
+        fmpz_neg(n, n);
+    }
+
+    success = 0;
+
+    FLINT_ASSERT(fmpz_sgn(d) > 0);
+    if (fmpz_cmp(d, D) <= 0)
+    {
+        fmpz_gcd(R, n, d);
+        success = fmpz_is_one(R);
+    }
+
+    goto cleanup;
+
+write_answer_mqrr:
+
+    FLINT_ASSERT(fmpz_sgn(d) > 0);
+
+    fmpz_gcd(R, n, d);
+    success = fmpz_is_one(R);
+
+    if (success)
+    {
+        success = !fmpz_is_zero(d);
+    }
+
+    if (!success && !fmpz_is_zero(D))
+    {
+        fmpz_set_ui(T,0);
+        goto continue_gauss;
+    }
+
+cleanup:
+
+    fmpz_clear(Q);
+    fmpz_clear(R);
+    fmpz_clear(A);
+    fmpz_clear(B);
+    _fmpz_mat22_clear(M);
+
+cleanup_assert:
+
+#if FLINT_WANT_ASSERT
+    FLINT_ASSERT(success == cqt_success);
+    if (success)
+    {
+        FLINT_ASSERT(fmpz_equal(n, cqt_n));
+        FLINT_ASSERT(fmpz_equal(d, cqt_d));
+    }
+    fmpz_clear(cqt_n);
+    fmpz_clear(cqt_d);
+#endif
+
+    return success;
+}
+
 
 int fmpq_reconstruct_fmpz_2(fmpq_t res, const fmpz_t a, const fmpz_t m,
                                                 const fmpz_t N, const fmpz_t D)
 {
     return _fmpq_reconstruct_fmpz_2(fmpq_numref(res),
                                     fmpq_denref(res), a, m, N, D);
+}
+
+int fmpq_reconstruct_fmpz_2_mqrr(fmpq_t res, const fmpz_t a, const fmpz_t m,
+                                                const fmpz_t N, const fmpz_t D, fmpz_t T)
+{
+    return _fmpq_reconstruct_fmpz_2_mqrr(fmpq_numref(res),
+                                    fmpq_denref(res), a, m, N, D, T);
 }
 
