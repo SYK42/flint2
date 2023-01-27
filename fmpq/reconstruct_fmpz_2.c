@@ -307,6 +307,134 @@ gauss:
         return 0;
 }
 
+int _fmpq_reconstruct_fmpz_2_ui_mqrr(fmpz_t n, fmpz_t d,
+              const fmpz_t a, const fmpz_t m, const fmpz_t NN, const fmpz_t DD, fmpz_t tt)
+{
+    mp_limb_t Q, R, A, B, N, T;
+    mp_limb_t m11 = 1, m12 = 0, t, num = 0, den = 0;
+    int mdet = 1;
+
+    FLINT_ASSERT(fmpz_size(m) == 1);
+
+    A = fmpz_get_ui(m);
+    B = fmpz_get_ui(a);
+    N = fmpz_get_ui(NN);
+    T = fmpz_get_ui(tt);
+
+    if (B == 0 && T != 0)
+    {
+        if (A > T)
+        {
+            den = 1;
+            goto write_answer_mqrr;
+        }
+        else if (!fmpz_cmp_ui(DD, 0))
+        {
+            T = 0;
+            goto gauss;
+        }
+        goto write_answer_mqrr;
+    }
+
+gauss:
+
+    FLINT_ASSERT(A > B && B > N);
+
+    if ((B == 0 || A < T) && T != 0)
+    {
+        goto write_answer_mqrr;
+    }
+
+    eudiv_qrnd(Q, R, A, B, tmp_);
+    if (Q > T && T != 0)
+    {
+        num = B * mdet;
+        den = m11;
+        T = Q;
+    }
+    mdet *= -1;
+    t = m12 + m11*Q;
+    m12 = m11;
+    m11 = t;
+    A = B;
+    B = R;
+
+continue_gauss:
+
+    if (B > N || DD == 0)
+        goto gauss;
+
+    FLINT_ASSERT(A > N && N >= B);
+
+    if (fmpz_cmp_ui(DD, m11) < 0)
+        return 0;
+
+    if (mdet > 0)
+        fmpz_set_ui(n, B);
+    else
+        fmpz_neg_ui(n, B);
+
+    fmpz_set_ui(d, m11);
+
+    FLINT_ASSERT(m11 != 0);
+    if (B == 0)
+        return m11 == 1;
+
+    if (B & 1)
+        return coprime_ui(B, m11);
+    else if (m11 & 1)
+        return coprime_ui(m11, B);
+    else
+        return 0;
+
+write_answer_mqrr:
+    fmpz_set_ui(d, den);
+    fmpz_set_ui(n, num);
+    fmpz_set_ui(tt, T);
+
+    if (d == 0)
+    {
+        if (!fmpz_cmp_ui(DD, 0))
+        {
+            T = 0;
+            fmpz_set_ui(tt, 0);
+            goto continue_gauss;
+        }
+        else return 0;
+    }
+    if ((num & 1) && !coprime_ui(num, den))
+    {
+        if (!fmpz_cmp_ui(DD, 0))
+        {
+            T = 0;
+            fmpz_set_ui(tt, 0);
+            goto continue_gauss;
+        }
+        else return 0;
+    }
+    else if ((den & 1) && !coprime_ui(den, num))
+    {
+        if (!fmpz_cmp_ui(DD, 0))
+        {
+            T = 0;
+            fmpz_set_ui(tt, 0);
+            goto continue_gauss;
+        }
+        else return 0;
+    }
+    else
+    {
+        if (!fmpz_cmp_ui(DD, 0))
+        {
+            T = 0;
+            fmpz_set_ui(tt, 0);
+            goto continue_gauss;
+        }
+        else return 0;
+    }
+    return 1;
+}
+
 int _fmpq_reconstruct_fmpz_2_uiui(fmpz_t n, fmpz_t d,
               const fmpz_t a, const fmpz_t m, const fmpz_t NN, const fmpz_t DD)
 {
@@ -1119,7 +1247,7 @@ int _fmpq_reconstruct_fmpz_2_mqrr(fmpz_t n, fmpz_t d,
     if (Asize <= FMPQ_RECONSTRUCT_ARRAY_LIMIT)
     {
         if (Asize < 2)
-            success = _fmpq_reconstruct_fmpz_2_ui(n, d, a, m, N, D);
+            success = _fmpq_reconstruct_fmpz_2_ui_mqrr(n, d, a, m, N, D, T);
         else if (Asize == 2)
             success = _fmpq_reconstruct_fmpz_2_uiui(n, d, a, m, N, D);
         else
